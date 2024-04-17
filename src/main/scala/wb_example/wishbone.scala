@@ -1,5 +1,8 @@
 package wb_example
-
+/*
+    A diplomatic implementation of the WishBone protocol, based on the talk: A Crash Course in the Diplomacy Framework by Edward Wang.
+    https://www.youtube.com/watch?v=4VfMCO4q26g
+*/
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import chisel3._
 import chisel3.util._

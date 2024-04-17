@@ -4,7 +4,7 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
     //  switch to support our anonymous Bundle definitions:
     //  https://github.com/scala/bug/issues/10047
     CrossVersion.partialVersion(scalaVersion) match {
-      case Some((2, scalaMajor: Int)) if scalaMajor < 12 => Seq()
+      case Some((2, scalaMajor: Long)) if scalaMajor < 12 => Seq()
       case _ => Seq("-Xsource:2.11")
     }
   }
@@ -16,7 +16,7 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
     //  Java 7 compatible code for Scala 2.11
     //  for compatibility with old clients.
     CrossVersion.partialVersion(scalaVersion) match {
-      case Some((2, scalaMajor: Int)) if scalaMajor < 12 =>
+      case Some((2, scalaMajor: Long)) if scalaMajor < 12 =>
         Seq("-source", "1.7", "-target", "1.7")
       case _ =>
         Seq("-source", "1.8", "-target", "1.8")
@@ -39,9 +39,9 @@ resolvers ++= Seq(
 val defaultVersions = Map(
   "chisel3" -> "3.2.+",
   "chisel-iotesters" -> "1.2.+",
-  "rocketchip" -> "1.2-SNAPSHOT",
+  "rocketchip" -> "1.2.+",
   "dsptools" -> "1.1.+",
-  "firrtl" -> "1.2-SNAPSHOT"
+  "firrtl" -> "1.2.+"
 )
 
 
@@ -50,7 +50,7 @@ libraryDependencies ++= (Seq("chisel3", "chisel-iotesters", "dsptools", "rocketc
 
 libraryDependencies ++= Seq(
   // other dependencies here
-  "org.scalanlp" %% "breeze" % "0.12",
+  "org.scalanlp" %% "breeze" % "0.13",
   // native libraries are not included by default. add this if you want them (as of 0.7)
   // native libraries greatly improve performance, but increase jar sizes.
   // It also packages various blas implementations, which have licenses that may or may not
@@ -64,7 +64,7 @@ libraryDependencies ++= Seq(
 
 libraryDependencies ++= Seq(
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.0",
-  "org.scalatest" %% "scalatest" % "2.1.3" % "test"
+  "org.scalatest" %% "scalatest" % "3.0.+" % "test"
 )
 
 

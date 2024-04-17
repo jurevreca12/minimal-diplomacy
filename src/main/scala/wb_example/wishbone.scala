@@ -51,8 +51,8 @@ case class WBEdgeParameters(
     master: WBMasterPortParameters,
     slave: WBSlavePortParameters) {
     val bundle = WBBundleParameters(
-        addrBits = 8,
-        dataBits = 32
+        addrBits = 2,
+        dataBits = 4
     )
 }
 
@@ -92,7 +92,11 @@ class WBDemoSource(implicit p: Parameters) extends LazyModule {
             )
         )
     ))
-    lazy val module = new LazyModuleImp(this) { /* ... */ }
+    lazy val module = new LazyModuleImp(this) { 
+        val out = node.out.unzip._1
+        out(0) := 0.U.asTypeOf(out(0))
+        dontTouch(out(0))
+    }
 }
 // Demo sink SoC component
 class WBDemoSink(implicit p: Parameters) extends LazyModule {
@@ -103,7 +107,10 @@ class WBDemoSink(implicit p: Parameters) extends LazyModule {
             )
         )
     ))
-    lazy val module = new LazyModuleImp(this) { /* ... */ }
+    lazy val module = new LazyModuleImp(this) { 
+        val in = node.in.unzip._1
+        dontTouch(in(0))
+     }
 }
 
 // Top-level demo module
@@ -113,7 +120,8 @@ class WBDemoTop(implicit p: Parameters) extends LazyModule {
     // Very important connection
     m2.node := m1.node
     // etc
-    lazy val module = new LazyModuleImp(this) { /* ... */ }
+    lazy val module = new LazyModuleImp(this) { 
+     }
 }
 
 object main extends App {

@@ -8,16 +8,16 @@ import chisel3.util.random.FibonacciLFSR
 import freechips.rocketchip.diplomacy.{SimpleNodeImp, RenderedEdge, ValName, SourceNode,
                                        NexusNode, SinkNode, LazyModule, LazyModuleImp}
 
-case class UpwardParam[T <: Data with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])
-case class DownwardParam[T <: Data with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])
-case class EdgeParam[T <: Data with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])
+case class UpwardParam[T <: Data with Num[T]](genT: T, coeffs: Seq[T])
+case class DownwardParam[T <: Data with Num[T]](genT: T, coeffs: Seq[T])
+case class EdgeParam[T <: Data with Num[T]](genT: T, coeffs: Seq[T])
 
 class FIRNodeImp[T <: Bits with Num[T]] extends SimpleNodeImp[DownwardParam[T], UpwardParam[T], EdgeParam[T], T] {
   def edge(pd: DownwardParam[T], pu: UpwardParam[T], p: Parameters, sourceInfo: SourceInfo) = {
-    if (pd.bitwidth < pu.bitwidth) EdgeParam(pd.bitwidth, pd.genT, pd.coeffs) else EdgeParam(pu.bitwidth, pu.genT, pu.coeffs)
+    if (pd.genT.getWidth < pu.genT.getWidth) EdgeParam(pd.genT, pd.coeffs) else EdgeParam(pu.genT, pu.coeffs)
   }
   def bundle(e: EdgeParam[T]) = e.genT
-  def render(e: EdgeParam[T]) = RenderedEdge("blue", s"width = ${e.bitwidth}")
+  def render(e: EdgeParam[T]) = RenderedEdge("blue", s"${e.genT}")
 }
 
 class FIRDriverNode[T <: Bits with Num[T]](dp: DownwardParam[T])(implicit valName: ValName)
@@ -33,17 +33,16 @@ class FIRNode[T <: Bits with Num[T]](dFn: Seq[DownwardParam[T]] => DownwardParam
 class FIR[T <: Bits with Num[T]](implicit p: Parameters) extends LazyModule {
   val node = new FIRNode[T] (
     { case dps: Seq[DownwardParam[T]] =>
-      require(dps.forall(dp => dp.bitwidth == dps.head.bitwidth), "inward, downward adder bitwidths must be equivalent")
+      require(dps.forall(dp => dp.genT.getWidth == dps.head.genT.getWidth), "inward, downward adder bitwidths must be equivalent")
       dps.head
     },
     { case ups: Seq[UpwardParam[T]] =>
-      require(ups.forall(up => up.bitwidth == ups.head.bitwidth), "outward, upward adder bitwidths must be equivalent")
+      require(ups.forall(up => up.genT.getWidth == ups.head.genT.getWidth), "outward, upward adder bitwidths must be equivalent")
       ups.head
     }
   )
   lazy val module = new LazyModuleImp(this) {
     require(node.in.size == 1, s"Node.in.size == ${node.in.size}")
-    val bitwidth = node.edges.in.head.bitwidth
     val zs = Reg(Vec(node.edges.in.head.coeffs.length, node.edges.in.head.genT))
     dontTouch(node.in.head._1)
     zs(0) := node.in.head._1
@@ -58,12 +57,12 @@ class FIR[T <: Bits with Num[T]](implicit p: Parameters) extends LazyModule {
   override lazy val desiredName = "FIR"
 }
 
-class FIRDriver[T <: Bits with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])(implicit p: Parameters) extends LazyModule {
-  val node = new FIRDriverNode[T](DownwardParam(bitwidth, genT, coeffs))
+class FIRDriver[T <: Bits with Num[T]](genT: T, coeffs: Seq[T])(implicit p: Parameters) extends LazyModule {
+  val node = new FIRDriverNode[T](DownwardParam(genT, coeffs))
 
   lazy val module = new LazyModuleImp(this) {
     // check that node parameters converge after negotiation
-    val negotiatedWidths = node.edges.out.map(_.bitwidth)
+    val negotiatedWidths = node.edges.out.map(_.genT.getWidth)
     require(negotiatedWidths.forall(_ == negotiatedWidths.head), "outputs must all have agreed on same width")
     val finalWidth = negotiatedWidths.head
 
@@ -71,15 +70,15 @@ class FIRDriver[T <: Bits with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])(i
     val randomAddend = FibonacciLFSR.maxPeriod(finalWidth)
 
     // drive signals
-    node.out.head._1 := randomAddend
+    node.out.head._1 := randomAddend.asTypeOf(node.out.head._1)
     dontTouch(node.out.head._1)
   }
 
   override lazy val desiredName = "FIRDriver"
 }
 
-class FIRMonitor[T <: Bits with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])(implicit p: Parameters) extends LazyModule {
-  val node = new FIRMonitorNode[T](UpwardParam(bitwidth, genT, coeffs))
+class FIRMonitor[T <: Bits with Num[T]](genT: T, coeffs: Seq[T])(implicit p: Parameters) extends LazyModule {
+  val node = new FIRMonitorNode[T](UpwardParam(genT, coeffs))
 
   lazy val module = new LazyModuleImp(this) {
     val io = IO(new Bundle {
@@ -95,11 +94,11 @@ class FIRMonitor[T <: Bits with Num[T]](bitwidth: Int, genT: T, coeffs: Seq[T])(
 }
 
 class FIRTestHarness()(implicit p: Parameters) extends LazyModule {
-  val fir = LazyModule(new FIR[UInt])
+  val fir = LazyModule(new FIR[SInt])
   // 8 will be the downward-traveling widths from our drivers
-  val driver =  LazyModule(new FIRDriver[UInt](bitwidth = 8, UInt(8.W), coeffs=Seq(1.U,2.U,3.U))) 
+  val driver =  LazyModule(new FIRDriver[SInt](SInt(8.W), coeffs=Seq(1.S,2.S,3.S))) 
   // 4 will be the upward-traveling width from our monitor
-  val monitor = LazyModule(new FIRMonitor[UInt](bitwidth = 4, UInt(4.W), coeffs=Seq(1.U,2.U,3.U)))
+  val monitor = LazyModule(new FIRMonitor[SInt](SInt(5.W), coeffs=Seq(1.S,2.S,3.S)))
 
   monitor.node := fir.node := driver.node
 

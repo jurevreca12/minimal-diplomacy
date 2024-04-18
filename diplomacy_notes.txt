@@ -1,0 +1,12 @@
+Comments:
+- The edge does the negotiation work to ensure parameter agreement between the nodes it connects.
+- In our "node implementation", or NodeImp, we describe how parameters flow throughout our graph and how parameters are negotiated between nodes.
+- AdderMonitor has a node for each value.
+- Overall, this approach to hardware generation encourages designers to take a much more global view of the system, even when
+  defining the generative behavior of localized components. The parameters described via diplomatic edges form a stable API with
+  which a generator can query the surroundings in which it instantiated, no matter where in the global design that may be.
+ 
+
+Questions:
+- Why are U D E not all the same type? Should'nt they represent the same information? (the Upwards/Downwards/Edge parameters)
+- Can you/should you replace a NexusNode with one source and one sink node? -> how would information flow trough it? nodes must be connected

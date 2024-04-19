@@ -121,7 +121,7 @@ class WBDemoTop(implicit p: Parameters) extends LazyModule {
     m2.node := m1.node
     // etc
     lazy val module = new LazyModuleImp(this) { 
-     }
+    }
 }
 
 object main extends App {

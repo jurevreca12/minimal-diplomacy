@@ -38,55 +38,48 @@ case class LBIRSlaveParameters[T <: Bits](
     nodePath: Seq[BaseNode],
     bundleParams: LBIRBundleParameters[T]
 )
-
-case class LBIRMasterPortParameters[T <: Bits](
-    masters: Seq[LBIRMasterParameters[T]]
-)
-case class LBIRSlavePortParameters[T <: Bits](
-    slaves: Seq[LBIRSlaveParameters[T]]
-)
 case class LBIREdgeParameters[T <: Bits](
-    master: LBIRMasterPortParameters[T],
-    slave: LBIRSlavePortParameters[T]
+    master: LBIRMasterParameters[T],
+    slave: LBIRSlaveParameters[T]
 ) 
 
-class LBIRImp[T <: Bits] extends SimpleNodeImp[LBIRMasterPortParameters[T], LBIRSlavePortParameters[T], LBIREdgeParameters[T], LBIRBundle[T]] {
+class LBIRImp[T <: Bits] extends SimpleNodeImp[LBIRMasterParameters[T], LBIRSlaveParameters[T], LBIREdgeParameters[T], LBIRBundle[T]] {
     // Collect downstream and upstream parameters into an edge.
-    def edge(pd: LBIRMasterPortParameters[T], pu: LBIRSlavePortParameters[T], p: Parameters, sourceInfo: SourceInfo) = LBIREdgeParameters[T](pd, pu)
-
+    def edge(pd: LBIRMasterParameters[T], pu: LBIRSlaveParameters[T], p: Parameters, sourceInfo: SourceInfo) = {
+        require(pd.bundleParams.genT.getClass == pu.bundleParams.genT.getClass)
+        require(pd.bundleParams.genT.getWidth == pu.bundleParams.genT.getWidth)
+        require(pd.bundleParams.numBeats == pu.bundleParams.numBeats)
+        LBIREdgeParameters[T](pd, pu)
+    }
     // generate hardware bundle.
-    def bundle(e: LBIREdgeParameters[T]) = new LBIRBundle[T](e.master.masters.head.bundleParams)
+    def bundle(e: LBIREdgeParameters[T]) = new LBIRBundle[T](e.master.bundleParams)
 
     def render(e: LBIREdgeParameters[T]) = RenderedEdge(colour = "#00ffcc" /* grenish */, "xxxx")
 
     // Tell this node that it has an additional outgoing connection
-    override def mixO(pd: LBIRMasterPortParameters[T], node: OutwardNode[LBIRMasterPortParameters[T], LBIRSlavePortParameters[T], LBIRBundle[T]]) = pd.copy(masters = pd.masters.map {
-        c => c.copy(nodePath = node +: c.nodePath)
-    })
+    override def mixO(pd: LBIRMasterParameters[T], node: OutwardNode[LBIRMasterParameters[T], LBIRSlaveParameters[T], LBIRBundle[T]]) = {
+        pd.copy(nodePath = node +: pd.nodePath)
+    }
     // Tell this node that it has an additional incoming connection
-    override def mixI(pu: LBIRSlavePortParameters[T], node: InwardNode[LBIRMasterPortParameters[T], LBIRSlavePortParameters[T], LBIRBundle[T]]) = pu.copy(slaves = pu.slaves.map {
-        m => m.copy(nodePath = node +: m.nodePath)
-    })
+    override def mixI(pu: LBIRSlaveParameters[T], node: InwardNode[LBIRMasterParameters[T], LBIRSlaveParameters[T], LBIRBundle[T]]) = {
+        pu.copy(nodePath = node +: pu.nodePath)
+    }
 }
 
-case class LBIRMasterNode[T <: Bits](portParams: Seq[LBIRMasterPortParameters[T]])(implicit valName: ValName) extends SourceNode(new LBIRImp[T])(portParams)
-case class LBIRSlaveNode[T <: Bits](portParams: Seq[LBIRSlavePortParameters[T]])(implicit valName: ValName) extends SinkNode(new LBIRImp[T])(portParams)
-case class LBIRNexusNode[T <: Bits](masterFn: Seq[LBIRMasterPortParameters[T]] => LBIRMasterPortParameters[T], 
-                    slaveFn: Seq[LBIRSlavePortParameters[T]] => LBIRSlavePortParameters[T])(implicit valName: ValName) extends NexusNode(new LBIRImp[T])(masterFn, slaveFn)
+case class LBIRMasterNode[T <: Bits](portParams: Seq[LBIRMasterParameters[T]])(implicit valName: ValName) extends SourceNode(new LBIRImp[T])(portParams)
+case class LBIRSlaveNode[T <: Bits](portParams: Seq[LBIRSlaveParameters[T]])(implicit valName: ValName) extends SinkNode(new LBIRImp[T])(portParams)
+case class LBIRNexusNode[T <: Bits](masterFn: Seq[LBIRMasterParameters[T]] => LBIRMasterParameters[T], 
+                    slaveFn: Seq[LBIRSlaveParameters[T]] => LBIRSlaveParameters[T])(implicit valName: ValName) extends NexusNode(new LBIRImp[T])(masterFn, slaveFn)
 
 // Demo source SoC component
 class LBIRDemoSource[T <: Bits](genT: T, numBeats: Int)(implicit p: Parameters) extends LazyModule {
     val node = LBIRMasterNode[T](Seq(
-        LBIRMasterPortParameters[T](
-            Seq(
-                LBIRMasterParameters[T](
-                    "Demo fuzzer",
-                    Nil,
-                    LBIRBundleParameters(
-                        genT,
-                        numBeats
-                    )
-                )
+        LBIRMasterParameters[T](
+            "Demo fuzzer",
+            Nil,
+            LBIRBundleParameters(
+                genT,
+                numBeats
             )
         )
     ))
@@ -100,17 +93,13 @@ class LBIRDemoSource[T <: Bits](genT: T, numBeats: Int)(implicit p: Parameters) 
 // Demo sink SoC component
 class LBIRDemoSink[T <: Bits](genT: T, numBeats: Int)(implicit p: Parameters) extends LazyModule {
     val node = LBIRSlaveNode[T](Seq(
-        LBIRSlavePortParameters(
-            Seq(
-                LBIRSlaveParameters(
-                    Seq(AddressSet(0,8)), 
-                    Nil,
-                    LBIRBundleParameters(
-                        genT,
-                        numBeats
-                    ))
-            )
-        )
+        LBIRSlaveParameters(
+            Seq(AddressSet(0,8)), 
+            Nil,
+            LBIRBundleParameters(
+                genT,
+                numBeats
+            ))
     ))
     lazy val module = new LazyModuleImp(this) { 
         val io = IO(new Bundle {
@@ -130,30 +119,22 @@ class LBIRDemoSink[T <: Bits](genT: T, numBeats: Int)(implicit p: Parameters) ex
 
 class LBIRAdderExample[T <: Bits](genT: T, numBeats: Int)(implicit p: Parameters) extends LazyModule {
     val snode = LBIRSlaveNode[T](Seq(
-        LBIRSlavePortParameters(
-            Seq(
-                LBIRSlaveParameters(
-                    Seq(AddressSet(0, 8)), 
-                    Nil,
-                    LBIRBundleParameters(
-                        genT,
-                        numBeats
-                    )
-                )
+        LBIRSlaveParameters(
+            Seq(AddressSet(0, 8)), 
+            Nil,
+            LBIRBundleParameters(
+                genT,
+                numBeats
             )
         )
     ))
     val mnode = LBIRMasterNode[T](Seq(
-        LBIRMasterPortParameters(
-            Seq(
-                LBIRMasterParameters(
-                    "Adder", 
-                    Nil,
-                    LBIRBundleParameters(
-                        genT,
-                        numBeats
-                    )
-                )
+        LBIRMasterParameters(
+            "Adder", 
+            Nil,
+            LBIRBundleParameters(
+                genT,
+                numBeats
             )
         )
     ))
